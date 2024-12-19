@@ -1,4 +1,4 @@
-# anpr-saas
+# anpr-saas 
 
 
 
@@ -15,14 +15,14 @@ Already a pro? Just edit this README.md and make it your own. Want to make it ea
 
 ```
 cd existing_repo
-git remote add origin https://gitlab.parqour.com/cv/application/anpr-saas.git
+git remote add origin https://gitlab.parqour.com/cv/mvp-applications/triton-inference.git
 git branch -M master
 git push -uf origin master
 ```
 
 ## Integrate with your tools
 
-- [ ] [Set up project integrations](https://gitlab.parqour.com/cv/application/anpr-saas/-/settings/integrations)
+- [ ] [Set up project integrations](https://gitlab.parqour.com/cv/mvp-applications/triton-inference/-/settings/integrations)
 
 ## Collaborate with your team
 

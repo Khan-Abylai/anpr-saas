@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  triton:
+    container_name: tritonserver
+    image: registry.parqour.com/cv/application/anpr-saas:1.0
+    environment:
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+    restart: always
+    ipc: host
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    volumes:
+      - ./models_cpu/:/models
+    working_dir: /opt/tritonserver/bin
+    shm_size: 8g
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    command: ./tritonserver --model-repository=/models --allow-grpc=True #--log-verbose=1
+
+  recognizer_api:
+    container_name: recognizer_api
+    working_dir: /src
+    image: registry.parqour.com/cv/application/anpr-saas:1.0
+    environment:
+      - ENVIRONMENT=production
+      - MAX_WORKERS=4
+      - TIMEOUT=120
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+    restart: always
+    shm_size: 4g
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 9003
+      --workers 4
+      --timeout-keep-alive 120
+    ports:
+      - "9003:9003"
+    logging:
+      options:
+        max-size: 50m
+    volumes:
+      - ./logs:/app/logs
+      - ./src:/src
+    network_mode: host
+
