@@ -114,7 +114,7 @@ async def anpr_api(file: UploadFile = File(...), request: Request = None, region
             content={'status': True,
             'data': {
                 'plates': {str(label): float(prob) for label, prob in zip(labels, probs)},
-                'result_image': image_to_base64(result_image),
+                # 'result_image': image_to_base64(result_image),
                 'exec_time': exec_time
             }
         })

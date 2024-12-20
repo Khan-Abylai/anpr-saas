@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 
-class Settings():
+class Settings(BaseSettings):
     APP_NAME: str = "License Plate Recognition API"
     DEBUG: bool = False
     IMAGE_WIDTH: int = 512

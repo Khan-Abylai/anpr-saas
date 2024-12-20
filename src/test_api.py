@@ -40,9 +40,10 @@ def check_anpr_api(endpoint_url: str, image_path: str, region: str, output_image
             result = response.json()
             if result["status"]:
                 # Save the result image
-                save_base64_image(result["data"]["result_image"], output_image_path)
+                # save_base64_image(result["data"]["result_image"], output_image_path)
                 print(f"Result image saved at {output_image_path}")
                 print(f"Detected plates: {result['data']['plates']}")
+                print(f"execution time: {result['data']['exec_time']* 1000:.2f} ms")
             else:
                 print(f"API returned no plates detected: {result['data']}")
         else:
@@ -54,8 +55,8 @@ def check_anpr_api(endpoint_url: str, image_path: str, region: str, output_image
 
 # Usage
 if __name__ == "__main__":
-    API_URL = "http://0.0.0.0:9003/api/anpr"  # Replace with the actual API URL
-    INPUT_IMAGE = "../debug/usa/usa2.jpeg"  # Replace with the path to your test image
+    API_URL = "http://10.0.11.91:9003/api/anpr"  # Replace with the actual API URL
+    INPUT_IMAGE = "debug/usa/usa.jpeg"  # Replace with the path to your test image
     REGION = "USA"  # Replace with the desired region
     OUTPUT_IMAGE = "result_image.jpg"  # Path to save the result image
 
