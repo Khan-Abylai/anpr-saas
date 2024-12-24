@@ -1,14 +1,10 @@
 import numpy as np
-import sys
 import json
-import io
 import triton_python_backend_utils as pb_utils
-import os
-import torchvision.transforms as transforms
-from PIL import Image
 import collections
 import torch
 import string
+
 class StrLabelConverter(object):
 
     def __init__(self, alphabet, ignore_case=True):
@@ -19,6 +15,9 @@ class StrLabelConverter(object):
         self.alphabet = '-' + alphabet
 
         self.alphabet_indicies = {char: i for i, char in enumerate(self.alphabet)}
+
+        self.BLANK_INDEX = 0
+        self.SEQUENCE_SIZE = 30
 
     def encode(self, text):
         try:
@@ -57,6 +56,27 @@ class StrLabelConverter(object):
                 index += l
             return texts
 
+    def get_prob(self, raw_labels, raw_probs):
+        current_prob = 1.0
+        for j in range(self.SEQUENCE_SIZE):
+            if raw_labels[j] != self.BLANK_INDEX and not (j > 0 and raw_labels[j] == raw_labels[j - 1]):
+                current_prob *= raw_probs[j]
+
+        return current_prob
+
+    def standardize_license_plate(plate_label: str) -> str:
+        STANDARD_DIGIT = '0'
+        STANDARD_ALPHA = 'A'
+
+        standardized_plate_label = list(plate_label)
+
+        for char_index in range(len(plate_label)):
+            if plate_label[char_index].isdigit():
+                standardized_plate_label[char_index] = STANDARD_DIGIT
+            elif plate_label[char_index].isalpha():
+                standardized_plate_label[char_index] = STANDARD_ALPHA
+
+        return ''.join(standardized_plate_label)
 
 class TritonPythonModel:
     """Your Python model must use the same class name. Every Python model
@@ -134,9 +154,11 @@ class TritonPythonModel:
             predictions = predictions.permute(1, 0, 2).contiguous()
             prediction_size = torch.IntTensor([predictions.size(0)]).repeat(1)
             predicted_probs, predicted_labels = predictions.detach().cpu().max(2)
-            predicted_probs = np.around(torch.exp(predicted_probs).permute(1, 0).numpy(), decimals=1)
+            predicted_probs = torch.exp(predicted_probs).permute(1, 0).numpy()
+            pred_labels = predicted_labels.permute(1, 0).numpy()
             predicted_test_labels = np.array(self.converter.decode(predicted_labels, prediction_size, raw=False))
-            predicted_probs = np.array(np.mean(predicted_probs))
+            prob = self.converter.get_prob(pred_labels[0], predicted_probs[0])
+            predicted_probs = np.array(prob)
 
             out_tensor_0 = pb_utils.Tensor("label", predicted_test_labels.astype(output0_dtype))
             out_tensor_1 = pb_utils.Tensor("probability", predicted_probs.astype(output_prob_dtype))
