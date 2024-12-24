@@ -1,0 +1,23 @@
+name: "usa_detection"
+platform: "onnxruntime"
+max_batch_size: 0
+input [
+ {
+    name: "actual_input"
+    data_type: TYPE_FP32
+    format: FORMAT_NONE
+    dims: [1, 3, 512, 512]
+  }
+]
+output {
+    name: "output"
+    data_type: TYPE_FP32
+    dims: [1, 1024, 13]
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_CPU
+  }
+]

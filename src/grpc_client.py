@@ -2,12 +2,13 @@ import cv2
 import numpy as np
 import tritonclient.grpc as tritongrpcclient
 from tritonclient.utils import InferenceServerException
+from functools import partial
 from utils import DetectionUtils
 import warnings
 warnings.filterwarnings("ignore")
 
 class DetectionTriton(object):
-    def __init__(self, triton_client, model_name, model_version='1', img_width=512, img_height=512, nms_threshold=0.45, conf_threshold=0.7):
+    def __init__(self, triton_client, model_name, model_version='1', img_width=512, img_height=512, nms_threshold=0.45, conf_threshold=0.7, use_squared=False, draw=False):
         self.model_name = model_name
         self.model_version = model_version
         self.input_name = 'actual_input'
@@ -21,9 +22,11 @@ class DetectionTriton(object):
                                                                 model_version=self.model_version)
         self.detection_utils = DetectionUtils(img_width=img_width, img_height=img_height, nms_thres=self.nms_threshold,
                                         conf_thres=self.conf_threshold)
+        self.squared = use_squared
+        self.draw_result = draw
 
 
-    def detect(self, image, draw=True, squared=False):
+    def detect(self, image):
         img_orig = image.copy()
         inputs = []
         outputs = []
@@ -34,7 +37,7 @@ class DetectionTriton(object):
         outputs.append(tritongrpcclient.InferRequestedOutput(self.output_name))
         response = self.triton_client.infer(self.model_name, inputs=inputs, outputs=outputs)
         predictions = response.as_numpy('output')
-        drawn_image, plate_images, flag = self.detection_utils.postprocess(predictions[0], img_orig, draw=draw, squared=squared)
+        drawn_image, plate_images, flag = self.detection_utils.postprocess(predictions[0], img_orig, draw=self.draw_result, squared=self.squared)
 
         return drawn_image, plate_images, flag
 
@@ -51,9 +54,10 @@ class RecognitionTriton(object):
                                                                 model_version=self.model_version)
 
 
-    def recognize(self, plate_images):
+    def recognize(self, plate_images, write_images=False):
         labels = []
         probs = []
+        regions = []
         for plate_image in plate_images:
             inputs = []
             outputs = []
@@ -67,18 +71,24 @@ class RecognitionTriton(object):
             outputs.append(tritongrpcclient.InferRequestedOutput('PROBABILITY'))
             # outputs.append(tritongrpcclient.InferRequestedOutput('REGION'))
 
-            response = self.triton_client.infer('usa_ensemble', inputs=inputs, outputs=outputs)
+            response = self.triton_client.infer(self.model_name, inputs=inputs, outputs=outputs)
 
             label = response.as_numpy('LABEL')
             label = np.asarray(label, dtype=str)
             probability = response.as_numpy('PROBABILITY')
             probability = np.asarray(probability, dtype=float)
-            # region = response.as_numpy('REGION')
-            # region = np.asarray(region, dtype=str)
+            try:
+                region = response.as_numpy('REGION')
+                region = np.asarray(region, dtype=str)
+            except InferenceServerException as e:
+                region = None
+            if write_images:
+                cv2.imwrite('/plate_images/' + str(label) + "_" + str(probability) + "_" + str(region) + ".jpg", image)
             labels.append(label)
             probs.append(probability)
+            regions.append(region)
 
-        return labels, probs
+        return labels, probs, regions
 
 
 

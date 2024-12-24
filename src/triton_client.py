@@ -2,75 +2,137 @@ import tritonclient.grpc as tritongrpcclient
 import cv2
 import numpy as np
 import torch
+from utils import DetectionUtils
 import time
-
+import os
+from functools import partial
 from qtconsole.qtconsoleapp import flags
+from tritonclient.utils import InferenceServerException
 
 from utils import StrLabelConverter
 import string
+# os.environ['CURL_CA_BUNDLE'] = ''
+
 import warnings
 warnings.filterwarnings("ignore")
 
-url = '127.0.0.1:8001'
-
-model_name = 'usa_ensemble'
+url = '10.0.11.91:8001'
+#
+model_name = 'europe_ensemble'
 input_name = 'INPUT'
 output_name = 'OUTPUT_0'
 model_version = '1'
-# regions = ["dubai", "abu-dhabi", "sharjah", "ajman", "ras-al-khaimah", "fujairah", "alquwain", "bahrein", "oman", "saudi", "quatar", "kuwait", "others"]
+# # regions = ["dubai", "abu-dhabi", "sharjah", "ajman", "ras-al-khaimah", "fujairah", "alquwain", "bahrein", "oman", "saudi", "quatar", "kuwait", "others"]
+
+regions = ['albania', 'andorra', 'austria', 'belgium', 'bosnia', 'bulgaria', 'croatia', 'cyprus', 'czech', 'estonia',
+           'finland', 'france', 'germany', 'greece', 'hungary', 'ireland', 'italy', 'latvia',
+           'licht', 'lithuania', 'luxemburg', 'makedonia', 'malta', 'monaco', 'montenegro', 'netherlands', 'poland',
+           'portugal', 'romania', 'san_marino', 'serbia', 'slovakia', 'slovenia', 'spain', 'sweden', 'swiss', 'marocco']
 
 triton_client = tritongrpcclient.InferenceServerClient(url=url, verbose=False)
-# model_metadata = triton_client.get_model_metadata(model_name=model_name, model_version=model_version)
-# model_config = triton_client.get_model_config(model_name=model_name, model_version=model_version)
+model_metadata = triton_client.get_model_metadata(model_name=model_name, model_version=model_version)
+model_config = triton_client.get_model_config(model_name=model_name, model_version=model_version)
 
 if __name__ == '__main__':
 
-    # ensemble client
+    # test detector
+    # url = '10.0.11.91:8003'
+    #
+    # model_name = 'usa_detection'
+    # input_name = 'actual_input'
+    # output_name = 'output'
+    # model_version = '1'
+    #
+    # detection = DetectionUtils(img_width=512, img_height=512, nms_thres=0.45, conf_thres=0.7)
+    # triton_client = tritongrpcclient.InferenceServerClient(url=url, verbose=False)
+    # model_metadata = triton_client.get_model_metadata(model_name=model_name, model_version=model_version)
+    # model_config = triton_client.get_model_config(model_name=model_name, model_version=model_version)
+    # s = 0
+    # for i in range(10):
+    #     # detection client
+    #     t1 = time.time()
+    #     inputs = []
+    #     outputs = []
+    #
+    #     image = cv2.imread("../debug/usa/usa2.jpeg")
+    #     image_model = detection.preprocess(image)
+    #     image_data = np.expand_dims(image_model, axis=0)
+    #     inputs.append(tritongrpcclient.InferInput(input_name, image_data.shape, 'FP32'))
+    #     inputs[0].set_data_from_numpy(image_data)
+    #
+    #     outputs.append(tritongrpcclient.InferRequestedOutput(output_name))
+    #
+    #     response = triton_client.infer(model_name, inputs=inputs, outputs=outputs)
+    #
+    #     predictions = response.as_numpy('output')
+    #
+    #     draw_image, plate_images, flag = detection.postprocess(predictions[0], image)
+    #     exec_time = time.time() - t1
+    #     s += exec_time
+    #     print("exec time: ", exec_time)
+    # print(f"average time: {s/100}")
+    # cv2.imwrite("../debug/result.jpg", draw_image)
+    # for idx, plate in enumerate(plate_images):
+    #     cv2.imwrite("../debug/res" + str(idx) + ".jpg", plate)
+    # openvino average time: 0.025054590702056886
+    # onnxruntime average time: 0.030724840164184572
+
+
+
+    # ensemble client for usa
+    # t1 = time.time()
+    # inputs = []
+    # outputs = []
+    # # image_data = np.fromfile("../debug/usa/_ET161D_21-51-19_lp_et161dp_0.972_0.jpeg", dtype="uint8")
+    # stop =1
+    # image_data = cv2.imread("../debug/usa/_ET161D_21-51-19_lp_et161dp_0.972_0.jpeg")
+    # image_data = np.array(cv2.imencode('.jpg', image_data)[1])
+    # # image_data = np.array(image_data.transpose(2,0,1), dtype=np.uint8).reshape(-1)
+    # image_data = np.expand_dims(image_data, axis=0)
+    #
+    # inputs.append(tritongrpcclient.InferInput(input_name, image_data.shape, 'UINT8'))
+    # inputs[0].set_data_from_numpy(image_data)
+    #
+    # outputs.append(tritongrpcclient.InferRequestedOutput('LABEL'))
+    # outputs.append(tritongrpcclient.InferRequestedOutput('PROBABILITY'))
+    # # outputs.append(tritongrpcclient.InferRequestedOutput('REGION'))
+    #
+    # response = triton_client.infer('usa_ensemble', inputs=inputs, outputs=outputs)
+    #
+    # label = response.as_numpy('LABEL')
+    # label = np.asarray(label, dtype=str)
+    # probability = response.as_numpy('PROBABILITY')
+    # probability = np.asarray(probability, dtype=float)
+    # # region = response.as_numpy('REGION')
+    # # region = np.asarray(region, dtype=str)
+    # print(label, probability)
+    # print("ensemble exec time: ", time.time() - t1)
+
+
+
+    # preprocess, engine, postprocess client
     t1 = time.time()
     inputs = []
     outputs = []
-    # image_data = np.fromfile("../debug/usa/_ET161D_21-51-19_lp_et161dp_0.972_0.jpeg", dtype="uint8")
-    stop =1
-    image_data = cv2.imread("../debug/usa/_ET161D_21-51-19_lp_et161dp_0.972_0.jpeg")
-    image_data = np.array(cv2.imencode('.jpg', image_data)[1])
-    # image_data = np.array(image_data.transpose(2,0,1), dtype=np.uint8).reshape(-1)
+    image_data = np.fromfile("../debug/europe/mar_plate.png", dtype="uint8")
     image_data = np.expand_dims(image_data, axis=0)
-
     inputs.append(tritongrpcclient.InferInput(input_name, image_data.shape, 'UINT8'))
     inputs[0].set_data_from_numpy(image_data)
 
     outputs.append(tritongrpcclient.InferRequestedOutput('LABEL'))
     outputs.append(tritongrpcclient.InferRequestedOutput('PROBABILITY'))
-    # outputs.append(tritongrpcclient.InferRequestedOutput('REGION'))
+    outputs.append(tritongrpcclient.InferRequestedOutput('REGION'))
 
-    response = triton_client.infer('usa_ensemble', inputs=inputs, outputs=outputs)
+    response = triton_client.infer(model_name, inputs=inputs, outputs=outputs)
 
     label = response.as_numpy('LABEL')
     label = np.asarray(label, dtype=str)
     probability = response.as_numpy('PROBABILITY')
     probability = np.asarray(probability, dtype=float)
-    # region = response.as_numpy('REGION')
-    # region = np.asarray(region, dtype=str)
-    print(label, probability)
+    region = response.as_numpy('REGION')
+    region = np.asarray(region, dtype=str)
+    print(label, probability, region)
     print("ensemble exec time: ", time.time() - t1)
-
-
-
-    # preprocess, engine, postprocess client
-    # t1 = time.time()
-    # inputs = []
-    # outputs = []
-    # image_data = np.fromfile("../debug/mena.png", dtype="uint8")
-    # image_data = np.expand_dims(image_data, axis=0)
-    # inputs.append(tritongrpcclient.InferInput(input_name, image_data.shape, 'UINT8'))
-    # inputs[0].set_data_from_numpy(image_data)
-    #
-    # outputs.append(tritongrpcclient.InferRequestedOutput(output_name))
-    # # cls_output = tritongrpcclient.InferRequestedOutput('cls')
-    # response = triton_client.infer(model_name, inputs=inputs, outputs=outputs)
-    #
-    # out = response.as_numpy('OUTPUT_0')
-    # print("preprocessing time: ", time.time() - t1)
     #
     # t2 = time.time()
     #

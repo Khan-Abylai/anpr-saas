@@ -58,71 +58,77 @@ async def anpr_api(file: UploadFile = File(...), request: Request = None, region
     Analyze an image for license plate detection and recognition.
     """
 
-    try:
-        region_data = settings.TRITON_REGIONS.get(region)
-        if region_data:
-            detector = DetectionTriton(triton_client, model_name=region_data["detector"],
-                                       img_width=settings.IMAGE_WIDTH, img_height=settings.IMAGE_HEIGHT)
-            recognizer = RecognitionTriton(triton_client, model_name=region_data["recognizer"])
-        else:
-            raise HTTPException(
-                status_code=401,
-                detail=f"ANPR not supported for {region}"
-            )
+    # try:
 
-        # Read file content
-        contents = await file.read()
-        file_size = len(contents)
+    if region in settings.TRITON_REGIONS and region!="GLOBAL":
+        region_data_recognizer = settings.TRITON_REGIONS.get(region)["recognizer"]
+        usa_squared = settings.TRITON_REGIONS.get(region)["use_squared"]
+        try:
+            region_data_detector = settings.TRITON_REGIONS.get(region)["detector"]
+            detector = DetectionTriton(triton_client, model_name=region_data_detector,
+                                       img_width=settings.IMAGE_WIDTH, img_height=settings.IMAGE_HEIGHT, use_squared=usa_squared)
+        except Exception as e:
+            detector = DetectionTriton(triton_client, model_name=settings.TRITON_REGIONS.get("GLOBAL")["detector"],
+                                       img_width=settings.GLOBAL_IMAGE_WIDTH, img_height=settings.GLOBAL_IMAGE_HEIGHT, use_squared=usa_squared)
 
-        # Validate file size
-        if file_size > settings.MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large. Maximum size is {settings.MAX_FILE_SIZE / 1024 / 1024:.1f}MB"
-            )
+        if region_data_recognizer:
+            recognizer = RecognitionTriton(triton_client, model_name=region_data_recognizer)
+    else:
+        raise HTTPException(
+            status_code=401,
+            detail=f"ANPR not supported for region {region}"
+        )
 
-        # Validate file type
-        file_ext = file.filename.split('.')[-1].lower()
-        if file_ext not in settings.ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=402,
-                detail=f"File type not allowed. Allowed types: {settings.ALLOWED_EXTENSIONS}"
-            )
+    # Read file content
+    contents = await file.read()
+    file_size = len(contents)
 
-        # Process image
-        image = readb64(contents)
+    # Validate file size
+    if file_size > settings.MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {settings.MAX_FILE_SIZE / 1024 / 1024:.1f}MB"
+        )
 
-        t1 = time.time()
+    # Validate file type
+    file_ext = file.filename.split('.')[-1].lower()
+    if file_ext not in settings.ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=402,
+            detail=f"File type not allowed. Allowed types: {settings.ALLOWED_EXTENSIONS}"
+        )
 
-        # Detection
-        result_image, plate_images, flag = detector.detect(image)
+    # Process image
+    image = readb64(contents)
 
-        if not flag:
-            return JSONResponse(
-                status_code=404,
-                content={"status": False, "data": "No license plate detected"}
-            )
+    t1 = time.time()
 
-        # Recognition
-        labels, probs = recognizer.recognize(plate_images)
+    # Detection
+    result_image, plate_images, flag = detector.detect(image)
 
-        t2 = time.time()
-        exec_time = t2 - t1
-
+    if not flag:
         return JSONResponse(
-            status_code=200,
-            content={'status': True,
-            'data': {
-                'plates': {str(label): float(prob) for label, prob in zip(labels, probs)},
-                # 'result_image': image_to_base64(result_image),
-                'exec_time': exec_time
-            }
-        })
+            status_code=404,
+            content={"status": False, "data": "No license plate detected"}
+        )
 
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        logging.error(f"Error processing image: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Recognition
+    labels, probs, regions = recognizer.recognize(plate_images, write_images=True)
 
+    t2 = time.time()
+    exec_time = t2 - t1
 
+    return JSONResponse(
+        status_code=200,
+        content={'status': True,
+                 'data': {
+                     'plates': {str(label): float(prob) for label, prob in zip(labels, probs)},
+                     # 'result_image': image_to_base64(result_image),
+                     'exec_time': exec_time
+                 }
+                 })
+    # except HTTPException as he:
+    #     raise he
+    # except Exception as e:
+    #     logging.error(f"Error processing image: {str(e)}")
+    #     raise HTTPException(status_code=500, detail=str(e))

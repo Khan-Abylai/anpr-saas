@@ -1,7 +1,7 @@
 import requests
 import base64
 from pathlib import Path
-
+import time
 
 def save_base64_image(base64_image: str, output_path: str):
     """
@@ -52,12 +52,11 @@ def check_anpr_api(endpoint_url: str, image_path: str, region: str, output_image
     except Exception as e:
         print(f"Error: {e}")
 
-
 # Usage
 if __name__ == "__main__":
-    API_URL = "http://10.0.11.91:9003/api/anpr"  # Replace with the actual API URL
-    INPUT_IMAGE = "debug/usa/usa.jpeg"  # Replace with the path to your test image
-    REGION = "USA"  # Replace with the desired region
+    API_URL = "http://10.0.11.91:9003/api/anpr"  # 185.4.182.34
+    INPUT_IMAGE = "debug/cis/squared.jpg"
+    REGION = "CIS"  # Replace with the desired region
     OUTPUT_IMAGE = "result_image.jpg"  # Path to save the result image
-
-    check_anpr_api(API_URL, INPUT_IMAGE, REGION, OUTPUT_IMAGE)
+    for i in range(1):
+        check_anpr_api(API_URL, INPUT_IMAGE, REGION, OUTPUT_IMAGE)
